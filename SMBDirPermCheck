@@ -1,0 +1,185 @@
+#!/bin/bash
+
+# -----------------------------------------------------------
+# SMBDirPermCheck.sh R1pFr4n
+# Description: A script to check SMB directory permissions
+# -----------------------------------------------------------
+
+# Colours
+greenColour="\e[0;32m\033[1m"
+redColour="\e[0;31m\033[1m"
+blueColour="\e[0;34m\033[1m"
+yellowColour="\e[0;33m\033[1m"
+purpleColour="\e[0;35m\033[1m"
+endColour="\033[0m\e[0m"
+turquoiseColour="\e[0;36m\033[1m"
+
+#Trapping Ctrl+c
+sigint() {
+  echo -e "\n\n ${redColour}[*] Exiting${endColour} \n"
+  rm dirs.txt progress.txt temp.txt > /dev/null 2>&1
+  tput cnorm
+  kill -- -$$ > /dev/null 2>&1
+  exit 1
+}
+trap sigint INT
+
+# Function to print usage
+# Function to print usage
+usage() {
+    echo
+    echo -e "${turquoiseColour}Usage${endColour}: $0 ${turquoiseColour}[-s server] [-f folder] [-u username] [-p password] [-t threads]${endColour}"
+    echo -e "If ${turquoiseColour}[-u username]${endColour} and ${turquoiseColour}[-p password]${endColour} are ${greenColour}not provided${endColour}, ${purpleColour}Guest Session${endColour} will be used.${endColour}"
+    echo -e "If ${turquoiseColour}[-t threads]${endColour} is ${greenColour}not provided${endColour}, default value is ${purpleColour}15${endColour}."
+    exit 1
+}
+
+# Default number of threads
+threads=15
+
+# Parsing command-line options
+while getopts "s:f:u:p:t:h" opt; do
+  case ${opt} in
+    s )
+      server=$OPTARG
+      ;;
+    f )
+      folder=$OPTARG
+      ;;
+    u )
+      user=$OPTARG
+      ;;
+    p )
+      password=$OPTARG
+      ;;
+    t )
+      threads=$OPTARG
+      ;;
+    h | \? )
+      usage
+      ;;
+  esac
+done
+
+
+# If no arguments provided, print usage
+if [ $# -eq 0 ]
+then
+  usage
+fi
+
+# Validation
+if [[ -z $server ]] || [[ -z $folder ]]; then
+    echo -e "\n${redColour}Server (-s) and Folder (-f) parameters are required!${endColour}"
+    usage
+fi
+
+if [[ -n $user ]] && [[ -z $password ]]; then
+    echo -e "\n${redColour}Both Username (-u) and Password (-p) must be provided together!${endColour}"
+    usage
+fi
+
+# Guest or user session
+if [[ -z $user ]] && [[ -z $password ]]; then
+    echo
+    echo -e "${turquoiseColour}Using guest session...${endColour}\n"
+    creds="-N"
+else
+    if [[ -z $user ]] || [[ -z $password ]]; then
+        echo -e "${redColour}Both Username (-u) and Password (-p) must be provided together!${endColour}"
+        usage
+    fi
+    echo
+    echo -e "${purpleColour}Using user session...${endColour}\n"
+    creds="-U $user%$password"
+fi
+
+# Check if the access is denied with the given credentials
+if ! smbclient -L $server $creds &>/dev/null
+then
+    echo -e "\n${redColour}Access denied. Please check your credentials and permissions.${endColour}\n"
+    exit 1
+fi
+
+# Adjusting folder structure
+IFS="/" read -ra FOLDER <<< "$folder"
+main_folder=${FOLDER[0]}
+sub_folders=${FOLDER[@]:1}
+
+# Check if the resource exists
+if ! smbclient $creds "//$server/$main_folder" -D "$sub_folders" -c '' &>/dev/null
+then
+    echo -e "\n${redColour}The specified resource does not exist or is inaccessible. Please check the server and folder parameters. The full path was: //$server/$main_folder/$sub_folders ${endColour}\n"
+    exit 1
+fi
+
+tput civis
+touch temp.txt
+# List folders inside folder, excluding "." and ".." directories and block information
+smbclient $creds "//$server/$main_folder" -D "$sub_folders" -c 'ls' | grep -v "blocks" | awk '{print $1}' | grep -P '^[0-9a-zA-Z].+' > dirs.txt
+
+total_dirs=$(wc -l <dirs.txt)
+
+# Create a temporary file for progress tracking
+touch progress.txt
+total_dirs=$(wc -l <dirs.txt)
+
+# Check if there are no directories
+if [[ $total_dirs -eq 0 ]]; then
+    echo -e "\n${redColour}No directories found inside \"$folder\". Please check the specified resource. The full path was: //$server/$main_folder/$sub_folders${endColour}\n"
+    rm dirs.txt progress.txt temp.txt > /dev/null 2>&1
+    tput cnorm
+    exit 1
+fi
+
+# Create a temporary file for progress tracking
+touch progress.txt
+
+# Create a function to check write permissions in a subfolder
+check_dir() {
+    greenColour="\e[0;32m\033[1m"
+    endColour="\033[0m\e[0m"
+    subdir=$1
+    # Try to write a file in the folder
+    smbclient $creds "//$server/$main_folder" -D "$sub_folders" -c "cd $subdir; put temp.txt" &>/dev/null
+    # Check if operation was successful
+    if [[ $? -eq 0 ]]; then
+        if [[ $folder == */ ]]; then
+            echo -e "${greenColour}Can write to: \"$folder${subdir#/}\"\r${endColour}"
+        else
+            echo -e "${greenColour}Can write to: \"$folder/$subdir\"\r${endColour}"
+        fi
+    fi
+    # Remove the temporary file
+    smbclient $creds "//$server/$main_folder" -D "$sub_folders" -c "cd $subdir; del temp.txt" &>/dev/null
+    # Write to the progress file
+    echo "done" >> progress.txt
+}
+
+export -f check_dir
+export server
+export folder
+export main_folder
+export sub_folders
+export user
+export password
+export creds
+
+# multiple processes
+cat dirs.txt | xargs -P $threads -I {} bash -c 'check_dir "{}"' &
+xargs_pid=$!
+
+# Track progress in the background
+while ps -p $xargs_pid > /dev/null; do
+    checked_dirs=$(wc -l <progress.txt)
+    echo -ne "${blueColour}Checking directories: [$checked_dirs/$total_dirs]\r${endColour}"
+    sleep 1
+done
+
+# Print the final status
+checked_dirs=$(wc -l <progress.txt)
+echo -e "\n\n${yellowColour}Final status: Checked $checked_dirs out of $total_dirs directories${endColour}"
+
+# Delete the temporary files
+rm dirs.txt progress.txt temp.txt > /dev/null 2>&1
+tput cnorm
