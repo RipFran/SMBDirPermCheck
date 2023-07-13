@@ -42,7 +42,7 @@ Running the tool will display the following help panel:
 
 Each option functions as follows:
 
-- **Server** (<span style="color:blue">-s</span> parameter): This required parameter specifies the IP address or hostname of the SMB server that is to be checked.
+- **Server** (*-s* parameter): This required parameter specifies the IP address or hostname of the SMB server that is to be checked.
 - **Folder** (*-f* parameter): This required parameter indicates the shared resource (folder) on the SMB server for which the write permissions of its internal resources are to be scanned.
 - **Username** (*-u* parameter) and **Password** (*-p* parameter): These optional parameters provide the username and password for authentication with the SMB server. If neither username nor password is provided, the script will proceed using a guest session, implying no authentication. If a username is given, a password must also be provided.
 - **Threads** (*-t* parameter): This optional parameter defines the number of threads to be used for checking permissions. If this parameter is not specified, the script will use a default value of 15 threads.
