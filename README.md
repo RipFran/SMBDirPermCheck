@@ -29,7 +29,7 @@ chmod +x SMBDirPermCheck
 The script **SMBDirPermCheck** can be executed using the following command format:
 
 ```bash
-./SMBDirPermCheck.sh -s [server] -f [folder] -u [username] -p [password] -t [threads]
+./SMBDirPermCheck -s [server] -f [folder] -u [username] -p [password] -t [threads]
 ```
 
 Running the tool will display the following help panel:
@@ -42,7 +42,7 @@ Running the tool will display the following help panel:
 
 Each option functions as follows:
 
-- **Server** (*-s* parameter): This required parameter specifies the IP address or hostname of the SMB server that is to be checked.
+- **Server** (<span style="color:blue">-s</span> parameter): This required parameter specifies the IP address or hostname of the SMB server that is to be checked.
 - **Folder** (*-f* parameter): This required parameter indicates the shared resource (folder) on the SMB server for which the write permissions of its internal resources are to be scanned.
 - **Username** (*-u* parameter) and **Password** (*-p* parameter): These optional parameters provide the username and password for authentication with the SMB server. If neither username nor password is provided, the script will proceed using a guest session, implying no authentication. If a username is given, a password must also be provided.
 - **Threads** (*-t* parameter): This optional parameter defines the number of threads to be used for checking permissions. If this parameter is not specified, the script will use a default value of 15 threads.
@@ -50,7 +50,7 @@ Each option functions as follows:
 Below are a couple of usage **examples**:
 
 ```bash
-./SMBDirPermCheck.sh -s 192.168.47.146 -u franEsc -p 'fran123$!' -f Usuarios -t 30
+./SMBDirPermCheck -s 192.168.47.146 -u franEsc -p 'fran123$!' -f Usuarios -t 30
 ```
 
 In this example, the script connects to the SMB server at IP address 192.168.47.146 using the username "*franEsc*" and the password "*fran123$!*". It then checks the write permissions of the internal resources within the shared resource "*Usuarios*" using 30 threads. This scenario demonstrates a typical use case with authentication.
@@ -62,7 +62,7 @@ In this example, the script connects to the SMB server at IP address 192.168.47.
 </p>
 
 ```bash
-./SMBDirPermCheck.sh -s 10.10.10.103 -f 'Department Shares'
+./SMBDirPermCheck -s 10.10.10.103 -f 'Department Shares'
 ```
 
 In this second example, the script connects to the SMB server at IP address 10.10.10.103 and proceeds with a guest session, as neither a username nor a password is provided. The script then checks the write permissions of the internal resources within the shared resource "*Department Shares*" using the default number of threads (15). This scenario demonstrates a typical use case without authentication.
